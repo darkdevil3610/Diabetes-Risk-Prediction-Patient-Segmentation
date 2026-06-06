@@ -5,19 +5,14 @@ Requires: model.pkl in the same directory
 """
 
 from pathlib import Path
-
 import joblib
 import numpy as np
 import pandas as pd
 import streamlit as st
-
 import warnings
 from sklearn.exceptions import InconsistentVersionWarning
 
-warnings.filterwarnings(
-    "ignore",
-    category=InconsistentVersionWarning
-)
+warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
 
 # ── PAGE CONFIG ────────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -26,366 +21,298 @@ st.set_page_config(
     layout="centered"
 )
 
-# ── CUSTOM CSS ────────────────────────────────────────────────────────────────
+# ── HIGH-END PREMIUM CLINICAL STYLING ──────────────────────────────────────────
 st.markdown("""
 <style>
+    /* ── PRECISE SIDEBAR TRANSFORMATION ──────────────── */
+    section[data-testid="stSidebar"] {
+        background-color: #0F172A !important; /* Rich Dark Slate Background */
+        border-right: 1px solid #1E293B;
+    }
 
+    /* Target labels and markdown text specifically, ignoring internal system icons */
+    section[data-testid="stSidebar"] p,
+    section[data-testid="stSidebar"] label,
+    section[data-testid="stSidebar"] h1,
+    section[data-testid="stSidebar"] h2,
+    section[data-testid="stSidebar"] h3 {
+        color: #E2E8F0 !important;
+        font-family: 'Inter', system-ui, sans-serif;
+    }
 
-  .stButton > button {
-      background:#1D9E75;
-      color:white;
-      border-radius:10px;
-      font-weight:600;
-      width:100%;
-      padding:0.6rem;
-      border:none;
-  }
+    section[data-testid="stSidebar"] label {
+        font-size: 0.9rem !important;
+        font-weight: 500 !important;
+        color: #94A3B8 !important;
+    }
 
-  .stButton > button:hover {
-      background:#0A7A57;
-      color:white;
-  }
+    /* Custom UI Slider Handles and Tracks */
+    section[data-testid="stSidebar"] div[data-testid="stThumbValue"] {
+        background-color: #0EA5E9 !important;
+        color: white !important;
+        border-radius: 6px !important;
+        padding: 2px 6px !important;
+        font-size: 0.8rem !important;
+    }
 
-  .result-high,
-  .result-low,
-  .result-med {
-      padding:1rem;
-      border-radius:8px;
-      margin-top:1rem;
-      color:#1F2937;
-  }
+    section[data-testid="stSidebar"] div[role="slider"] {
+        background-color: #0EA5E9 !important;
+        border: 2px solid #0EA5E9 !important;
+    }
 
-  .result-high *,
-  .result-low *,
-  .result-med * {
-      color:inherit !important;
-  }
+    /* Number Input Fields Inside Sidebar */
+    section[data-testid="stSidebar"] input[type="number"] {
+        background-color: #1E293B !important;
+        color: #F8FAFC !important;
+        border: 1px solid #334155 !important;
+        border-radius: 8px !important;
+    }
 
-  .result-high {
-      background:#FDEDEC;
-      border-left:5px solid #C0392B;
-  }
+    section[data-testid="stSidebar"] button[data-testid="stNumberInputStepUp"],
+    section[data-testid="stSidebar"] button[data-testid="stNumberInputStepDown"] {
+        background-color: #1E293B !important;
+        color: #94A3B8 !important;
+        border: none !important;
+    }
 
-  .result-low {
-      background:#EAFAF1;
-      border-left:5px solid #1D9E75;
-  }
+    /* ── MAIN CONTENT ELEMENTS ────────────────────────── */
+    /* Premium gradient main action button */
+    .stButton > button {
+        background: linear-gradient(135deg, #0EA5E9 0%, #2563EB 100%);
+        color: white !important;
+        border-radius: 8px;
+        font-weight: 600;
+        width: 100%;
+        padding: 0.7rem;
+        border: none;
+        transition: all 0.25s ease;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+    }
+    .stButton > button:hover {
+        background: linear-gradient(135deg, #0284C7 0%, #1D4ED8 100%);
+        box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
+        transform: translateY(-1px);
+    }
 
-  .result-med {
-      background:#FEF9E7;
-      border-left:5px solid #F39C12;
-  }
+    /* Theme-agnostic framing layout for main workspace metrics */
+    div[data-testid="stMetric"] {
+        background-color: rgba(15, 23, 42, 0.03); /* Soft semi-transparent tint */
+        padding: 0.75rem 0.5rem !important; /* Slightly tighter padding */
+        border-radius: 12px;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+    }
+
+    /* CRITICAL FIX: Prevent truncation (ellipses) and dynamically size text */
+    div[data-testid="stMetricValue"] > div {
+        color: inherit !important;
+        font-size: calc(1.3rem + 0.3vw) !important; /* Responsive fluid size */
+        white-space: normal !important; /* Allow wrapping if absolutely needed */
+        text-overflow: clip !important; /* Force overflow removal */
+        overflow: visible !important;
+    }
+
+    div[data-testid="stMetricLabel"] > div {
+        color: rgba(100, 116, 139, 0.9) !important;
+        font-weight: 500;
+        font-size: 0.85rem !important; /* Slightly smaller label to maximize value space */
+    }
 </style>
 """, unsafe_allow_html=True)
-
 # ── LOAD MODEL ────────────────────────────────────────────────────────────────
 @st.cache_resource
 def load_model():
-
     model_path = Path(__file__).with_name("model.pkl")
-
     try:
         saved = joblib.load(model_path)
-
         scaler = None
-
-        # If saved as dictionary
         if isinstance(saved, dict):
             model = saved.get("model")
             scaler = saved.get("scaler")
-
-        # If only model saved
         else:
             model = saved
-
         return model, scaler, None
-
     except FileNotFoundError:
         return None, None, f"Missing file: {model_path}"
-
     except Exception as e:
         return None, None, str(e)
-
 
 model, scaler, err = load_model()
 
 # ── HEADER ────────────────────────────────────────────────────────────────────
 st.title("🩺 Diabetes Risk Predictor")
-
-st.markdown("""
-*Pima Indians Diabetes Database · Machine Learning Prediction System*
-""")
-
+st.markdown("*Pima Indians Diabetes Database · Machine Learning Prediction System*")
 st.markdown("---")
 
 # ── ERROR HANDLING ────────────────────────────────────────────────────────────
 if err:
-    st.error(f"""
-    ⚠️ Could not load the model file.
-
-    Make sure `model.pkl` exists in the same folder as `app.py`
-
-    Error:
-    `{err}`
-    """)
+    st.error(f"⚠️ Could not load the model file.\n\nMake sure `model.pkl` exists in the same folder as `app.py` \n\nError: `{err}`")
     st.stop()
 
-# ── SIDEBAR ───────────────────────────────────────────────────────────────────
-st.sidebar.header("Patient Clinical Data")
-
-st.sidebar.markdown("""
-Enter the patient's medical values below:
-""")
-
-pregnancies = st.sidebar.slider(
-    "Pregnancies",
-    0, 17, 1
-)
-
-glucose = st.sidebar.slider(
-    "Glucose (mg/dL)",
-    44, 199, 100
-)
-
-bp = st.sidebar.slider(
-    "Blood Pressure (mmHg)",
-    24, 122, 70
-)
-
-skin = st.sidebar.slider(
-    "Skin Thickness (mm)",
-    7, 99, 20
-)
-
-insulin = st.sidebar.slider(
-    "Insulin (μU/ml)",
-    14, 846, 80
-)
-
-bmi = st.sidebar.number_input(
-    "BMI",
-    10.0, 70.0, 24.0,
-    step=0.1
-)
-
-dpf = st.sidebar.number_input(
-    "Diabetes Pedigree Function",
-    0.05, 2.50, 0.20,
-    step=0.01
-)
-
-age = st.sidebar.slider(
-    "Age (years)",
-    21, 81, 25
-)
-
+# ── SIDEBAR (PREMIUM SLATE CONTROL PANEL) ──────────────────────────────────────
+st.sidebar.markdown("### 🧑‍⚕️ Patient Clinical Profile")
+st.sidebar.markdown("Adjust the verified metabolic markers below:")
 st.sidebar.markdown("---")
 
-predict_btn = st.sidebar.button(
-    "🔍 Predict Diabetes Risk",
-    use_container_width=True
-)
+pregnancies = st.sidebar.slider("Pregnancies", 0, 17, 1)
+glucose = st.sidebar.slider("Glucose (mg/dL)", 44, 199, 100)
+bp = st.sidebar.slider("Blood Pressure (mmHg)", 24, 122, 70)
+skin = st.sidebar.slider("Skin Thickness (mm)", 7, 99, 20)
+insulin = st.sidebar.slider("Insulin (μU/ml)", 14, 846, 80)
+bmi = st.sidebar.number_input("BMI", 10.0, 70.0, 24.0, step=0.1)
+dpf = st.sidebar.number_input("Diabetes Pedigree Function", 0.05, 2.50, 0.20, step=0.01)
+age = st.sidebar.slider("Age (years)", 21, 81, 25)
+
+st.sidebar.markdown("---")
+predict_btn = st.sidebar.button("🔍 Run Diagnostic Risk Evaluation", use_container_width=True)
 
 # ── PATIENT SUMMARY ───────────────────────────────────────────────────────────
-st.subheader("📋 Patient Summary")
-
+st.subheader("📋 Active Patient Summary")
 col1, col2, col3, col4 = st.columns(4)
-
-col1.metric("Glucose", f"{glucose} mg/dL")
-col2.metric("BMI", f"{bmi:.1f}")
-col3.metric("Age", f"{age} yrs")
-col4.metric("Pedigree", f"{dpf:.2f}")
+col1.metric("Glucose Level", f"{glucose} mg/dL")
+col2.metric("Body Mass Index", f"{bmi:.1f}")
+col3.metric("Patient Age", f"{age} yrs")
+col4.metric("Pedigree Value", f"{dpf:.2f}")
 
 st.markdown("---")
 
-# ── PREDICTION ────────────────────────────────────────────────────────────────
-if predict_btn:
+# ── PREDICTION & SIMULATION ENGINE ────────────────────────────────────────────
+if "has_predicted" not in st.session_state:
+    st.session_state.has_predicted = False
+if "saved_input" not in st.session_state:
+    st.session_state.saved_input = None
 
-    # Create input array
-    input_arr = pd.DataFrame([{
-    "Pregnancies": pregnancies,
-    "Glucose": glucose,
-    "BloodPressure": bp,
-    "SkinThickness": skin,
-    "Insulin": insulin,
-    "BMI": bmi,
-    "DiabetesPedigreeFunction": dpf,
-    "Age": age
+if predict_btn:
+    st.session_state.has_predicted = True
+    st.session_state.saved_input = pd.DataFrame([{
+        "Pregnancies": pregnancies,
+        "Glucose": glucose,
+        "BloodPressure": bp,
+        "SkinThickness": skin,
+        "Insulin": insulin,
+        "BMI": bmi,
+        "DiabetesPedigreeFunction": dpf,
+        "Age": age
     }])
 
-    # Apply scaler if available
-    model_input = input_arr
+if st.session_state.has_predicted:
+    input_arr = st.session_state.saved_input
 
+    model_input = input_arr
     if scaler is not None:
         try:
             model_input = scaler.transform(input_arr)
-
         except Exception as e:
             st.warning(f"Scaler transform failed: {e}")
 
-    # Prediction
     prediction = int(model.predict(model_input)[0])
-
-    # Probability calculation
     probability = None
 
     if hasattr(model, "predict_proba"):
-
         proba = model.predict_proba(model_input)
-
-        if proba.ndim == 2 and proba.shape[1] >= 2:
-            probability = float(proba[0][1])
-
-        else:
-            probability = float(proba[0][0])
-
+        probability = float(proba[0][1]) if (proba.ndim == 2 and proba.shape[1] >= 2) else float(proba[0][0])
     elif hasattr(model, "decision_function"):
-
         score = float(model.decision_function(model_input)[0])
-
-        probability = float(
-            1 / (1 + np.exp(-score))
-        )
-
+        probability = float(1 / (1 + np.exp(-score)))
     else:
         probability = float(prediction)
 
-    # Safety clamp
     probability = max(0.0, min(1.0, probability))
-    # ── RESULT DISPLAY ───────────────────────────────────────────────────────
-    st.subheader("🎯 Prediction Result")
 
+    # ── POPUP TOAST ALERTS ────────────────────────────────────────────────────
+    # Triggered immediately on calculation to grab user attention
+    if predict_btn:
+        if probability >= 0.60:
+            st.toast(f"🔴 CRITICAL ATTENTION REQUIRED: Patient evaluated at {probability*100:.1f}% risk tier.", icon="⚠️")
+        elif probability >= 0.35:
+            st.toast(f"🟡 ELEVATED ALERT: Patient falling into Moderate Risk limits ({probability*100:.1f}%).", icon="📋")
+        else:
+            st.toast(f"🟢 STABLE METRICS: Safe risk baseline computed profile ({probability*100:.1f}%).", icon="✅")
+
+    # ── RESULT DISPLAY ───────────────────────────────────────────────────────
+    st.subheader("🎯 Diagnostic Profile Results")
     model_name = model.__class__.__name__
 
     if probability >= 0.60:
-
-        st.markdown(
-    f"""
-    <div class="result-high">
-        <h3>🔴 HIGH RISK — {probability*100:.1f}% probability of Diabetes</h3>
-        <p><strong>Model used:</strong> {model_name}</p>
-        <p>⚠️ <strong>Recommendation:</strong><br>Immediate medical consultation advised.<br>Consider fasting glucose test, HbA1c screening, and lifestyle intervention.</p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+        with st.container(border=True):
+            st.error(f"### 🔴 CRITICAL RANGE — {probability*100:.1f}% Risk Probability")
+            st.markdown(f"**Analytics Engine:** `{model_name}`")
+            st.markdown("⚠️ **Clinical Directive:** Immediate physician review recommended. Consider fast-tracking HbA1c screening assessments alongside continuous metabolic checks.")
     elif probability >= 0.35:
-
-       st.markdown(
-    f"""
-    <div class="result-med">
-        <h3>🟡 MODERATE RISK — {probability*100:.1f}% probability of Diabetes</h3>
-        <p><strong>Model used:</strong> {model_name}</p>
-        <p>📋 <strong>Recommendation:</strong><br>Monitor blood glucose regularly.<br>Lifestyle changes like diet and exercise are strongly encouraged.</p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+        with st.container(border=True):
+            st.warning(f"### 🟡 BORDERLINE ELEVATED — {probability*100:.1f}% Risk Probability")
+            st.markdown(f"**Analytics Engine:** `{model_name}`")
+            st.markdown("📋 **Clinical Directive:** Monitor blood glucose benchmarks routinely. Structured lifestyle adjustments, focused activity metrics, and dietary changes are indicated.")
     else:
+        with st.container(border=True):
+            st.success(f"### 🟢 LOW RISK METRICS — {probability*100:.1f}% Risk Probability")
+            st.markdown(f"**Analytics Engine:** `{model_name}`")
+            st.markdown("✅ **Clinical Directive:** Maintain baseline optimal physiological metrics. Standard wellness evaluations and routine check-ups are sufficient.")
 
-        st.markdown(
-    f"""
-    <div class="result-low">
-        <h3>🟢 LOW RISK — {probability*100:.1f}% probability of Diabetes</h3>
-        <p><strong>Model used:</strong> {model_name}</p>
-        <p>✅ <strong>Recommendation:</strong><br>Maintain a healthy lifestyle.<br>Annual check-ups recommended.</p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+    st.caption(f"Evaluated Target Class: `{prediction}` (1 = Diabetes Risk Flagged, 0 = Within Normal Baseline)")
 
-    # ── PREDICTED CLASS ──────────────────────────────────────────────────────
-    st.caption(
-        f"Predicted class: `{prediction}` "
-        "(1 = Diabetes, 0 = No Diabetes)"
-    )
+    # ── LIGHTWEIGHT INTERACTIVE SEGMENTATION SLIDER ───────────────────────────
+    st.markdown("---")
+    st.subheader("📊 Therapeutic Optimization Sandbox")
+    st.markdown("Isolate and evaluate how adjusting this specific patient's glucose target parameter scales down the risk index in real-time:")
+
+    base_glucose = int(input_arr["Glucose"].iloc[0])
+
+    target_glucose = st.slider("Simulate Lower Glucose Target (mg/dL)", 70, int(max(base_glucose, 100)), base_glucose)
+
+    sim_arr = input_arr.copy()
+    sim_arr["Glucose"] = target_glucose
+    sim_input = scaler.transform(sim_arr) if scaler is not None else sim_arr
+
+    if hasattr(model, "predict_proba"):
+        sim_proba = model.predict_proba(sim_input)
+        sim_probability = float(sim_proba[0][1]) if (sim_proba.ndim == 2 and sim_proba.shape[1] >= 2) else float(sim_proba[0][0])
+    else:
+        sim_probability = float(model.predict(sim_input)[0])
+
+    sim_probability = max(0.0, min(1.0, sim_probability))
+
+    s_col1, s_col2 = st.columns(2)
+    s_col1.metric("Original Calculated Risk", f"{probability*100:.1f}%")
+    s_col2.metric("Simulated Mitigated Risk", f"{sim_probability*100:.1f}%",
+                  delta=f"-{(probability - sim_probability)*100:.1f}%" if probability > sim_probability else None)
 
     # ── RISK FLAGS ───────────────────────────────────────────────────────────
     st.markdown("---")
-
-    st.subheader("⚠️ Key Risk Flags")
+    st.subheader("⚠️ Core Structural Comorbidities")
 
     flags = []
-
-    if glucose >= 140:
-        flags.append(
-            "🔴 High Glucose (≥140 mg/dL) — strongest predictor"
-        )
-
-    if bmi >= 30:
-        flags.append(
-            "🔴 Obese BMI — significant diabetes risk factor"
-        )
-
-    if age >= 45:
-        flags.append(
-            "🟡 Age ≥ 45 — risk increases substantially"
-        )
-
-    if dpf >= 0.6:
-        flags.append(
-            "🟡 High Pedigree Score — genetic risk present"
-        )
-
-    if insulin > 200:
-        flags.append(
-            "🟡 High Insulin — possible insulin resistance"
-        )
-
-    if not flags:
-        flags.append(
-            "🟢 No major clinical risk flags identified"
-        )
+    if base_glucose >= 140: flags.append("🔴 **High Glucose Threshold Exception (≥140 mg/dL)** — Prominent statistical model predictor variable.")
+    if float(input_arr["BMI"].iloc[0]) >= 30: flags.append("🔴 **Clinical Obesity Metric (BMI ≥ 30)** — Strongly correlated with elevated metabolic insulin resistance values.")
+    if int(input_arr["Age"].iloc[0]) >= 45: flags.append("🟡 **Age Baseline Vector (≥45)** — Statistical acceleration threshold milestone.")
+    if float(input_arr["DiabetesPedigreeFunction"].iloc[0]) >= 0.6: flags.append("🟡 **Elevated Pedigree Function Index** — Notable inherited genetic risk marker trends.")
+    if int(input_arr["Insulin"].iloc[0]) > 200: flags.append("🟡 **Hyperinsulinemia Metric (>200 μU/ml)** — Potential sign of prolonged beta-cell strain.")
+    if not flags: flags.append("🟢 **Optimal Functional Baselines** — No major standard risk parameters triggered.")
 
     for flag in flags:
-        st.write(flag)
+        st.markdown(flag)
 
     # ── DEBUG SECTION ────────────────────────────────────────────────────────
-    with st.expander("🔍 Debug Info"):
-
-        st.write("Input Data:", input_arr.to_dict(orient="records"))
-
-        if 'proba' in locals():
-            st.write("Raw Probabilities:", proba.tolist())
-
-        st.write("Final Diabetes Probability:", probability)
+    with st.expander("🔍 System Telemetry Log"):
+        st.write("Input Vector Array:", input_arr.to_dict(orient="records"))
+        st.write("Calculated Raw Floating-Point Probability Value:", probability)
 
 # ── DEFAULT SCREEN ────────────────────────────────────────────────────────────
 else:
-
-    st.info("""
-    👈 Enter patient data in the sidebar
-    and click Predict to get a result.
-    """)
-
+    st.info("👈 Please input the required medical markers in the Patient Clinical Profile sidebar and hit evaluate.")
     st.markdown("""
-    ### How to use
+    ### How to Interact with the System
+    1. Fill in the clinical data sliders located inside the dark control workspace panel to the left.
+    2. Select **Run Diagnostic Risk Evaluation** to parse the inputs.
+    3. Study the downstream stratified metrics output and real-time optimization sandbox options.
 
-    1. Enter patient clinical measurements
-    2. Click **Predict Diabetes Risk**
-    3. Review the prediction and recommendations
+    ### Standard Dataset Healthy Sample Target Values
+    * **Pregnancies:** 0  |  **Glucose Baseline:** 85 mg/dL  |  **Blood Pressure:** 70 mmHg
+    * **Skin Thickness Value:** 20 mm  |  **Serum Insulin:** 79 μU/ml  |  **BMI Index:** 21.2
+    * **Pedigree Score:** 0.24  |  **Age:** 24 years old
 
-    ### Example Healthy Sample
-
-    - Pregnancies: 0
-    - Glucose: 85
-    - Blood Pressure: 70
-    - Skin Thickness: 20
-    - Insulin: 79
-    - BMI: 21
-    - DPF: 0.2
-    - Age: 24
-
-    ⚕️ This tool is for educational and research purposes only.
-    It should not replace professional medical diagnosis.
+    ⚕️ *Disclaimer: This layout architecture is provided strictly for educational modeling validation tasks. It must never substitute direct human practitioner medical interventions.*
     """)
 
 # ── FOOTER ────────────────────────────────────────────────────────────────────
 st.markdown("---")
-
-st.caption("""
-Dataset: Pima Indians Diabetes Database
-· UCI Machine Learning Repository
-· 768 records
-· 8 clinical features
-""")
+st.caption("Core Infrastructure Metadata: Pima Indians Diabetes Database · Managed through UCI Machine Learning Repository Hub · 768 patient indices with 8 continuous features.")
